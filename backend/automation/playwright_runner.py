@@ -1,12 +1,8 @@
-# backend/automation/playwright_runner.py
-# backend/automation/playwright_runner.py
-
 import logging
 import json
 from backend.config import Config
 from backend.models import AgentLog, db
 from backend.automation.deepseek_integration import generate_content
-
 
 def run_agent(topics, behavior_json):
     from playwright.sync_api import sync_playwright
@@ -22,7 +18,7 @@ def run_agent(topics, behavior_json):
 
     with sync_playwright() as p:
         logging.info("Launching browser...")
-        browser = p.chromium.launch(headless=False)  # Set to False for debugging
+        browser = p.chromium.launch(headless=True)  # Set to False for debugging
         page = browser.new_page()
         logging.info("Navigating to LinkedIn login...")
         page.goto("https://www.linkedin.com/login")
@@ -38,12 +34,12 @@ def run_agent(topics, behavior_json):
             page.goto(search_url)
             page.wait_for_load_state("networkidle")
             time.sleep(2)
-            posts = page.query_selector_all('div.feed-shared-update-v2')
+            posts = page.query_selector_all('div.feed-shared-update-v2__control-menu-container')
             logging.info(f"Found {len(posts)} posts for topic: {topic}")
             for post in posts[:behavior.get("max_posts", 2)]:
                 # Like
                 try:
-                    like_btn = post.query_selector('button[aria-label*="Like"]')
+                    like_btn = post.query_selector('button[aria-label*="React Like"]')
                     if like_btn:
                         like_btn.click()
                         actions_count["like"] += 1
@@ -56,7 +52,7 @@ def run_agent(topics, behavior_json):
 
                 # Follow
                 try:
-                    follow_btn = post.query_selector('button[aria-label*="Follow"]')
+                    follow_btn = post.query_selector('button.follow')
                     if follow_btn:
                         follow_btn.click()
                         actions_count["follow"] += 1
@@ -70,7 +66,7 @@ def run_agent(topics, behavior_json):
                 # Comment
                 try:
                     if behavior.get("comment", False):
-                        comment_btn = post.query_selector('button[aria-label*="Comment"]')
+                        comment_btn = post.query_selector('button.comment-button')
                         if comment_btn:
                             comment_btn.click()
                             time.sleep(1)
