@@ -24,7 +24,6 @@ def run_agent(topics, behavior_json):
         logging.warning("No topics provided. Exiting agent.")
         return actions_count
 
-    # Random time for posting (simulate once per day)
     now = datetime.now()
     post_time = now.replace(hour=random.randint(8, 22), minute=random.randint(0, 59), second=0, microsecond=0)
     if post_time < now:
@@ -33,7 +32,7 @@ def run_agent(topics, behavior_json):
     try:
         with sync_playwright() as p:
             logging.info("Launching browser...")
-            browser = p.chromium.launch(headless=False)  # Set to True for headless
+            browser = p.chromium.launch(headless=False)
             page = browser.new_page()
             logging.info("Navigating to LinkedIn login...")
             page.goto("https://www.linkedin.com/login")
@@ -44,19 +43,16 @@ def run_agent(topics, behavior_json):
             time.sleep(3)
             logging.info(f"Logged in. Current URL: {page.url}")
 
-            # Check for login success or captcha
             if "feed" not in page.url:
                 logging.error("Login failed or captcha encountered. Exiting agent.")
                 return actions_count
 
-            # Go to main feed
             page.goto("https://www.linkedin.com/feed/")
             page.wait_for_load_state("networkidle")
             time.sleep(3)
             logging.info("On main feed.")
 
-            # Interact with posts in the feed
-            posts = page.query_selector_all('div.feed-shared-update-v2__control-menu-container')
+            posts = page.query_selector_all('div.fie-impression-container')
             logging.info(f"Found {len(posts)} posts in feed.")
 
             max_posts = behavior.get("max_posts", 2)
@@ -64,14 +60,12 @@ def run_agent(topics, behavior_json):
                 if idx >= max_posts:
                     break
 
-                # Extract post text for topic relevance
                 try:
                     post_text_elem = post.query_selector('span.break-words')
                     post_text = post_text_elem.inner_text().lower() if post_text_elem else ""
                 except Exception:
                     post_text = ""
 
-                # Check if post is relevant to any topic
                 if not any(topic.lower() in post_text for topic in topics_list):
                     logging.info(f"Post {idx+1} not relevant to topics, skipping.")
                     continue
@@ -80,8 +74,8 @@ def run_agent(topics, behavior_json):
 
                 # Like
                 try:
-                    like_btn = post.query_selector('button[aria-label*="Like"], button[aria-label*="React Like"]')
-                    if like_btn and "active" not in like_btn.get_attribute("class"):
+                    like_btn = post.query_selector('button[aria-label*="React Like"]')
+                    if like_btn:
                         like_btn.click()
                         actions_count["like"] += 1
                         db.session.add(AgentLog(action="like", target=post_text[:100]))
@@ -166,14 +160,13 @@ def run_agent(topics, behavior_json):
                 wait_seconds = (post_time - now).total_seconds()
                 if wait_seconds > 0:
                     logging.info(f"Waiting {int(wait_seconds)} seconds to post article at {post_time.strftime('%H:%M')}")
-                    time.sleep(min(wait_seconds, 60))  # For demo, don't actually wait hours
+                    time.sleep(min(wait_seconds, 60))
                 topic = random.choice(topics_list)
                 prompt = f"Write a LinkedIn article about {topic} with relevant hashtags. The article should be at least 600 words and up to 1200 words. Make it insightful and engaging."
                 logging.info(f"Generating article with prompt: {prompt}")
                 article = generate_content(prompt, min_words=600, max_words=1200)
                 logging.info("Generated article for posting.")
 
-                # Go to post creation
                 page.goto("https://www.linkedin.com/feed/")
                 page.wait_for_load_state("networkidle")
                 time.sleep(2)
