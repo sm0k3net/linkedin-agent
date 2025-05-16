@@ -18,7 +18,7 @@ def run_agent(topics, behavior_json):
 
     with sync_playwright() as p:
         logging.info("Launching browser...")
-        browser = p.chromium.launch(headless=True)  # Set to False for debugging
+        browser = p.chromium.launch(headless=False)  # Set to False to True for debugging
         page = browser.new_page()
         logging.info("Navigating to LinkedIn login...")
         page.goto("https://www.linkedin.com/login")
@@ -30,13 +30,19 @@ def run_agent(topics, behavior_json):
         logging.info("Logged in, starting topic search...")
 
         for topic in topics.split(","):
-            search_url = f"https://www.linkedin.com/search/results/content/?keywords={topic.strip()}"
+            topic = topic.strip()
+            if not topic:
+                continue
+            search_url = f"https://www.linkedin.com/search/results/content/?keywords={topic}"
+            logging.info(f"Navigating to search page for topic: {topic}")
             page.goto(search_url)
             page.wait_for_load_state("networkidle")
             time.sleep(2)
             posts = page.query_selector_all('div.feed-shared-update-v2__control-menu-container')
             logging.info(f"Found {len(posts)} posts for topic: {topic}")
-            for post in posts[:behavior.get("max_posts", 2)]:
+            for idx, post in enumerate(posts[:behavior.get("max_posts", 2)]):
+                logging.info(f"Processing post {idx+1}/{len(posts)} for topic: {topic}")
+
                 # Like
                 try:
                     like_btn = post.query_selector('button[aria-label*="React Like"]')
@@ -47,6 +53,8 @@ def run_agent(topics, behavior_json):
                         db.session.commit()
                         logging.info("Liked a post.")
                         time.sleep(1)
+                    else:
+                        logging.info("Like button not found for this post.")
                 except Exception as e:
                     logging.warning(f"Like failed: {e}")
 
@@ -60,6 +68,8 @@ def run_agent(topics, behavior_json):
                         db.session.commit()
                         logging.info("Followed a user.")
                         time.sleep(1)
+                    else:
+                        logging.info("Follow button not found for this post.")
                 except Exception as e:
                     logging.warning(f"Follow failed: {e}")
 
@@ -83,8 +93,15 @@ def run_agent(topics, behavior_json):
                                     db.session.commit()
                                     logging.info("Commented on a post.")
                                     time.sleep(1)
+                                else:
+                                    logging.info("Submit comment button not found.")
+                            else:
+                                logging.info("Comment area not found.")
+                        else:
+                            logging.info("Comment button not found for this post.")
                 except Exception as e:
                     logging.warning(f"Comment failed: {e}")
 
+        logging.info(f"Actions summary: {actions_count}")
         browser.close()
     return actions_count
