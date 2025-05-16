@@ -1,0 +1,24 @@
+<!-- frontend/templates/dashboard.html -->
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>LinkedIn Agent Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <h1>LinkedIn Agent Dashboard</h1>
+    <form id="config-form">
+        <label>Topics (comma separated):</label>
+        <input type="text" name="topics" id="topics" value="{{ config.topics }}">
+        <label>Behavior (JSON):</label>
+        <textarea name="behavior" id="behavior" rows="5">{{ config.behavior }}</textarea>
+        <button type="submit">Update Config</button>
+    </form>
+    <button onclick="startAgent()">Start Agent</button>
+    <button onclick="stopAgent()">Stop Agent</button>
+    <h2>Analytics</h2>
+    <div id="analytics"></div>
+    <script src="/static/dashboard.js"></script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+/* frontend/static/style.css */
+
+body { font-family: Arial, sans-serif; margin: 2em; }
+form { margin-bottom: 1em; }
+textarea { width: 100%; }
+button { margin-right: 1em; }

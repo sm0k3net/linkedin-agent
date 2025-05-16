@@ -1,0 +1,7 @@
+# requirements.txt
+
+flask
+flask_sqlalchemy
+flask_socketio
+playwright
+requests
