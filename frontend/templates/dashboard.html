@@ -4,21 +4,35 @@
 <html>
 <head>
     <title>LinkedIn Agent Dashboard</title>
+    <link rel="stylesheet" href="https://unpkg.com/milligram/dist/milligram.min.css">
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <h1>LinkedIn Agent Dashboard</h1>
-    <form id="config-form">
-        <label>Topics (comma separated):</label>
-        <input type="text" name="topics" id="topics" value="{{ config.topics }}">
-        <label>Behavior (JSON):</label>
-        <textarea name="behavior" id="behavior" rows="5">{{ config.behavior }}</textarea>
-        <button type="submit">Update Config</button>
-    </form>
-    <button onclick="startAgent()">Start Agent</button>
-    <button onclick="stopAgent()">Stop Agent</button>
-    <h2>Analytics</h2>
-    <div id="analytics"></div>
+    <main class="container">
+        <h1>LinkedIn Agent</h1>
+        <div id="notification" style="display:none;" class="notification"></div>
+        <section>
+            <h3>Configuration</h3>
+            <form id="config-form">
+                <label for="topics">Topics (comma separated):</label>
+                <input type="text" name="topics" id="topics">
+                <label for="behavior">Behavior (JSON):</label>
+                <textarea name="behavior" id="behavior" rows="3"></textarea>
+                <button type="submit" class="button-primary">Update Config</button>
+            </form>
+            <div id="current-config" class="config-box"></div>
+        </section>
+        <section>
+            <h3>Agent Control</h3>
+            <button id="start-btn" onclick="startAgent()">Start Agent</button>
+            <button id="stop-btn" onclick="stopAgent()">Stop Agent</button>
+            <span id="agent-state" class="state-indicator"></span>
+        </section>
+        <section>
+            <h3>Analytics</h3>
+            <div id="analytics"></div>
+        </section>
+    </main>
     <script src="/static/dashboard.js"></script>
 </body>
 </html>
