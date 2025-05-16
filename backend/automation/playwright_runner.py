@@ -24,6 +24,7 @@ def run_agent(topics, behavior_json):
         logging.warning("No topics provided. Exiting agent.")
         return actions_count
 
+    # Random time for posting (simulate once per day)
     now = datetime.now()
     post_time = now.replace(hour=random.randint(8, 22), minute=random.randint(0, 59), second=0, microsecond=0)
     if post_time < now:
@@ -32,95 +33,110 @@ def run_agent(topics, behavior_json):
     try:
         with sync_playwright() as p:
             logging.info("Launching browser...")
-            browser = p.chromium.launch(headless=False)  # Set to False for debugging
+            browser = p.chromium.launch(headless=False)  # Set to True for headless
             page = browser.new_page()
             logging.info("Navigating to LinkedIn login...")
             page.goto("https://www.linkedin.com/login")
-            logging.info(f"Page loaded: {page.url}")
             page.fill('input[name="session_key"]', Config.LINKEDIN_EMAIL)
             page.fill('input[name="session_password"]', Config.LINKEDIN_PASSWORD)
             page.click('button[type="submit"]')
             page.wait_for_load_state("networkidle")
-            time.sleep(2)
+            time.sleep(3)
             logging.info(f"Logged in. Current URL: {page.url}")
 
-            for topic in topics_list:
-                logging.info(f"Processing topic: {topic}")
-                search_url = f"https://www.linkedin.com/search/results/content/?keywords={topic}"
-                logging.info(f"Navigating to search page: {search_url}")
-                page.goto(search_url)
-                page.wait_for_load_state("networkidle")
-                time.sleep(2)
-                logging.info(f"Arrived at: {page.url}")
-                posts = page.query_selector_all('div.feed-shared-update-v2__control-menu-container')
-                logging.info(f"Found {len(posts)} posts for topic: {topic}")
+            # Check for login success or captcha
+            if "feed" not in page.url:
+                logging.error("Login failed or captcha encountered. Exiting agent.")
+                return actions_count
 
-                for idx, post in enumerate(posts[:behavior.get("max_posts", 2)]):
-                    logging.info(f"Processing post {idx+1}/{len(posts)} for topic: {topic}")
+            # Go to main feed
+            page.goto("https://www.linkedin.com/feed/")
+            page.wait_for_load_state("networkidle")
+            time.sleep(3)
+            logging.info("On main feed.")
 
-                    # Like
-                    try:
-                        like_btn = post.query_selector('button[aria-label*="React Like"]')
-                        if like_btn:
-                            logging.info("Like button found, clicking...")
-                            like_btn.click()
-                            actions_count["like"] += 1
-                            db.session.add(AgentLog(action="like", target=topic))
-                            db.session.commit()
-                            logging.info("Liked a post.")
-                            time.sleep(random.uniform(1, 2))
-                        else:
-                            logging.info("Like button not found for this post.")
-                    except Exception as e:
-                        logging.warning(f"Like failed: {e}")
+            # Interact with posts in the feed
+            posts = page.query_selector_all('div.feed-shared-update-v2__control-menu-container')
+            logging.info(f"Found {len(posts)} posts in feed.")
 
-                    # Follow
-                    try:
-                        follow_btn = post.query_selector('button.follow')
-                        if follow_btn:
-                            logging.info("Follow button found, clicking...")
-                            follow_btn.click()
-                            actions_count["follow"] += 1
-                            db.session.add(AgentLog(action="follow", target=topic))
-                            db.session.commit()
-                            logging.info("Followed a user.")
-                            time.sleep(random.uniform(1, 2))
-                        else:
-                            logging.info("Follow button not found for this post.")
-                    except Exception as e:
-                        logging.warning(f"Follow failed: {e}")
+            max_posts = behavior.get("max_posts", 2)
+            for idx, post in enumerate(posts):
+                if idx >= max_posts:
+                    break
 
-                    # Comment
-                    try:
-                        if behavior.get("comment", True):
-                            comment_btn = post.query_selector('button.comment-button')
-                            if comment_btn:
-                                logging.info("Comment button found, clicking...")
-                                comment_btn.click()
-                                time.sleep(1)
-                                comment_area = post.query_selector('textarea')
-                                if comment_area:
-                                    prompt = behavior.get("comment_prompt", f"Write a relevant, interesting question or feedback about {topic}.")
-                                    logging.info(f"Generating comment with prompt: {prompt}")
-                                    comment = generate_content(prompt, min_words=20, max_words=50)
-                                    comment_area.fill(comment)
-                                    submit_btn = post.query_selector('button[aria-label*="Post comment"]')
-                                    if submit_btn:
-                                        logging.info("Submit comment button found, clicking...")
-                                        submit_btn.click()
-                                        actions_count["comment"] += 1
-                                        db.session.add(AgentLog(action="comment", target=topic, extra=comment))
-                                        db.session.commit()
-                                        logging.info("Commented on a post.")
-                                        time.sleep(random.uniform(1, 2))
-                                    else:
-                                        logging.info("Submit comment button not found.")
+                # Extract post text for topic relevance
+                try:
+                    post_text_elem = post.query_selector('span.break-words')
+                    post_text = post_text_elem.inner_text().lower() if post_text_elem else ""
+                except Exception:
+                    post_text = ""
+
+                # Check if post is relevant to any topic
+                if not any(topic.lower() in post_text for topic in topics_list):
+                    logging.info(f"Post {idx+1} not relevant to topics, skipping.")
+                    continue
+
+                logging.info(f"Interacting with post {idx+1} relevant to topics.")
+
+                # Like
+                try:
+                    like_btn = post.query_selector('button[aria-label*="Like"], button[aria-label*="React Like"]')
+                    if like_btn and "active" not in like_btn.get_attribute("class"):
+                        like_btn.click()
+                        actions_count["like"] += 1
+                        db.session.add(AgentLog(action="like", target=post_text[:100]))
+                        db.session.commit()
+                        logging.info("Liked a post.")
+                        time.sleep(random.uniform(1, 2))
+                    else:
+                        logging.info("Like button not found or already liked.")
+                except Exception as e:
+                    logging.warning(f"Like failed: {e}")
+
+                # Follow
+                try:
+                    follow_btn = post.query_selector('button.follow')
+                    if follow_btn:
+                        follow_btn.click()
+                        actions_count["follow"] += 1
+                        db.session.add(AgentLog(action="follow", target=post_text[:100]))
+                        db.session.commit()
+                        logging.info("Followed a user.")
+                        time.sleep(random.uniform(1, 2))
+                    else:
+                        logging.info("Follow button not found for this post.")
+                except Exception as e:
+                    logging.warning(f"Follow failed: {e}")
+
+                # Comment
+                try:
+                    if behavior.get("comment", True):
+                        comment_btn = post.query_selector('button.comment-button')
+                        if comment_btn:
+                            comment_btn.click()
+                            time.sleep(1)
+                            comment_area = post.query_selector('textarea')
+                            if comment_area:
+                                prompt = behavior.get("comment_prompt", f"Write a relevant, interesting question or feedback about this post: {post_text[:100]}")
+                                logging.info(f"Generating comment with prompt: {prompt}")
+                                comment = generate_content(prompt, min_words=20, max_words=50)
+                                comment_area.fill(comment)
+                                submit_btn = post.query_selector('button[aria-label*="Post comment"]')
+                                if submit_btn:
+                                    submit_btn.click()
+                                    actions_count["comment"] += 1
+                                    db.session.add(AgentLog(action="comment", target=post_text[:100], extra=comment))
+                                    db.session.commit()
+                                    logging.info("Commented on a post.")
+                                    time.sleep(random.uniform(1, 2))
                                 else:
-                                    logging.info("Comment area not found.")
+                                    logging.info("Submit comment button not found.")
                             else:
-                                logging.info("Comment button not found for this post.")
-                    except Exception as e:
-                        logging.warning(f"Comment failed: {e}")
+                                logging.info("Comment area not found.")
+                        else:
+                            logging.info("Comment button not found for this post.")
+                except Exception as e:
+                    logging.warning(f"Comment failed: {e}")
 
             # Randomly connect with people (1-12 per day)
             try:
@@ -133,7 +149,6 @@ def run_agent(topics, behavior_json):
                 logging.info(f"Found {len(connect_buttons)} connect buttons.")
                 for btn in random.sample(connect_buttons, min(num_connections, len(connect_buttons))):
                     try:
-                        logging.info("Clicking connect button...")
                         btn.click()
                         actions_count["connect"] += 1
                         db.session.add(AgentLog(action="connect", target="random"))
