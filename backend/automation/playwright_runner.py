@@ -1,4 +1,12 @@
 # backend/automation/playwright_runner.py
+# backend/automation/playwright_runner.py
+
+import logging
+import json
+from backend.config import Config
+from backend.models import AgentLog, db
+from backend.automation.deepseek_integration import generate_content
+
 
 def run_agent(topics, behavior_json):
     from playwright.sync_api import sync_playwright
