@@ -67,10 +67,14 @@ def analytics():
     like_count = AgentLog.query.filter_by(action="like").count()
     follow_count = AgentLog.query.filter_by(action="follow").count()
     comment_count = AgentLog.query.filter_by(action="comment").count()
+    post_count = AgentLog.query.filter_by(action="post").count()
+    connect_count = AgentLog.query.filter_by(action="connect").count()
     return jsonify({
         "like": like_count,
         "follow": follow_count,
-        "comment": comment_count
+        "comment": comment_count,
+        "post": post_count,
+        "connect": connect_count
     })
 
 @bp.route("/api/state", methods=["GET"])

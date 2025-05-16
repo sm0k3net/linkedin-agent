@@ -32,3 +32,4 @@ class AgentLog(db.Model):
     action = db.Column(db.String)
     target = db.Column(db.String)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    extra = db.Column(db.String, default="")

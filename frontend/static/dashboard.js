@@ -1,5 +1,3 @@
-// frontend/static/dashboard.js
-
 function showNotification(msg, error=false) {
     const n = document.getElementById("notification");
     n.innerText = msg;
@@ -64,6 +62,8 @@ async function loadAnalytics() {
             <li>Likes: ${data.like}</li>
             <li>Follows: ${data.follow}</li>
             <li>Comments: ${data.comment}</li>
+            <li>Posts: ${data.post}</li>
+            <li>Connections: ${data.connect}</li>
         </ul>
     `;
 }
