@@ -1,13 +1,12 @@
 # backend/app.py
 
 from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
 from flask_socketio import SocketIO
 from backend.config import Config
 from backend.routes import bp as routes_bp
 from backend.logging_setup import setup_logging
+from backend.models import db  # <-- import db from models
 
-db = SQLAlchemy()
 socketio = SocketIO(async_mode="threading")
 
 def create_app():
